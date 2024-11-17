@@ -58,16 +58,8 @@
 
     .progress-container {
       display: flex;
-      flex-direction: column;
-      align-items: center;
+      justify-content: space-around;
       margin-top: 20px;
-    }
-
-    @media (min-width: 600px) {
-      .progress-container {
-        flex-direction: row;
-        justify-content: space-around;
-      }
     }
 
     .circular-progress {
@@ -97,6 +89,12 @@
       dominant-baseline: middle;
     }
 
+    #network-graph {
+      width: 190px;
+      height: 250px;
+      margin: auto;
+    }
+
     #process-list {
       max-height: 300px;
       overflow-y: auto;
@@ -124,21 +122,6 @@
       align-items: center;
       justify-content: space-between;
     }
-
-    #process-list li:hover {
-      box-shadow: 0 4px 8px var(--process-item-shadow);
-    }
-
-    #process-list li .process-name {
-      font-size: 1em;
-      font-weight: bold;
-    }
-
-    #process-list li .process-id {
-      font-size: 0.9em;
-      color: var(--text-color);
-      opacity: 0.7;
-    }
   </style>
 </head>
 <body>
@@ -147,6 +130,11 @@
   <h1>System Monitor</h1>
 
   <div class="progress-container">
+    <div>
+      <h2>Network Usage</h2>
+      <canvas id="network-graph"></canvas>
+    </div>
+
     <div>
       <h2>CPU Usage</h2>
       <svg width="150" height="150" viewBox="0 0 250 250" class="circular-progress" id="cpu">
@@ -166,16 +154,65 @@
     </div>
   </div>
 
-  <div class="stat">Running Processes: <span id="processes" class="value">0</span></div>
-
   <h2>Process List</h2>
   <div id="process-list">
     <ul id="process-names"></ul>
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
     const socket = io();
+    const ctx = document.getElementById('network-graph').getContext('2d');
+
+    const networkChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [
+          {
+            label: 'Download Speed (KB/s)',
+            borderColor: 'blue',
+            data: [],
+            fill: false,
+          },
+          {
+            label: 'Upload Speed (KB/s)',
+            borderColor: 'green',
+            data: [],
+            fill: false,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        aspectRatio: 1,
+        scales: {
+          x: {
+            title: { display: true, text: 'Time' },
+          },
+          y: {
+            title: { display: true, text: 'Speed (KB/s)' },
+            beginAtZero: true,
+          },
+        },
+      },
+    });
+
+    function updateNetworkGraph(download, upload) {
+      const time = new Date().toLocaleTimeString();
+      networkChart.data.labels.push(time);
+      networkChart.data.datasets[0].data.push(download);
+      networkChart.data.datasets[1].data.push(upload);
+
+      if (networkChart.data.labels.length > 20) {
+        networkChart.data.labels.shift();
+        networkChart.data.datasets[0].data.shift();
+        networkChart.data.datasets[1].data.shift();
+      }
+
+      networkChart.update();
+    }
 
     function setCircularProgress(id, value) {
       const element = document.getElementById(id);
@@ -195,39 +232,22 @@
       progressCircle.style.strokeDasharray = `${dash} ${circumference - dash}`;
       progressText.textContent = `${roundedValue}%`;
 
-      let color = '#4caf50'; // Green by default
-      if (roundedValue > 90) color = '#f44336'; // Red for > 90%
-      else if (roundedValue > 50) color = '#ffeb3b'; // Yellow for > 50%
+      let color = '#4caf50';
+      if (roundedValue > 90) color = '#f44336';
+      else if (roundedValue > 50) color = '#ffeb3b';
       progressCircle.style.stroke = color;
     }
-
-    function applyTheme(theme) {
-      document.documentElement.setAttribute("data-theme", theme);
-      localStorage.setItem("theme", theme);
-    }
-
-    function toggleTheme() {
-      const currentTheme = document.documentElement.getAttribute("data-theme");
-      const newTheme = currentTheme === "dark" ? "light" : "dark";
-      applyTheme(newTheme);
-    }
-
-    const preferredTheme = localStorage.getItem("theme") || 
-      (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-    applyTheme(preferredTheme);
-
-    document.getElementById("theme-toggle").addEventListener("click", toggleTheme);
 
     socket.on('systemData', (data) => {
       setCircularProgress('cpu', data.cpuUsage);
       setCircularProgress('memory', data.memoryUsage);
-      document.getElementById('processes').innerText = data.processCount;
+      updateNetworkGraph(data.downloadSpeed, data.uploadSpeed);
 
       const processList = document.getElementById('process-names');
       processList.innerHTML = '';
       data.processList.forEach((process) => {
         const listItem = document.createElement('li');
-        
+
         const nameSpan = document.createElement('span');
         nameSpan.className = 'process-name';
         nameSpan.innerText = process.cmd;
@@ -241,6 +261,24 @@
         processList.appendChild(listItem);
       });
     });
+
+    function applyTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      localStorage.setItem('theme', theme);
+    }
+
+    function toggleTheme() {
+      const currentTheme = document.documentElement.getAttribute('data-theme');
+      const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+      applyTheme(newTheme);
+    }
+
+    const preferredTheme =
+      localStorage.getItem('theme') ||
+      (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    applyTheme(preferredTheme);
+
+    document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
   </script>
 </body>
 </html>
