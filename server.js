@@ -83,13 +83,37 @@ io.on('connection', (socket) => {
             previousBytesReceived = bytesReceived;
             previousBytesSent = bytesSent;
 
-            socket.emit('systemData', {
-              cpuUsage: cpuUsage * 100,
-              memoryUsage: memoryUsage * 100,
-              processCount,
-              processList,
-              downloadSpeed: downloadSpeed.toFixed(2), // KB/s
-              uploadSpeed: uploadSpeed.toFixed(2), // KB/s
+            // Get disk usage stats
+            exec("df -BG --output=size,used -x tmpfs -x devtmpfs", (error, stdout) => {
+              if (error) {
+                console.error(`Error fetching disk stats: ${error}`);
+                return;
+              }
+
+              const diskStats = stdout
+                .split('\n')
+                .slice(1) // Skip the header
+                .filter((line) => line.trim()) // Remove empty lines
+                .map((line) => {
+                  const parts = line.trim().split(/\s+/); // Split by whitespace
+                  return {
+                    size: parseInt(parts[0].replace('G', '')), // Total size in GB
+                    used: parseInt(parts[1].replace('G', '')), // Used size in GB
+                  };
+                });
+
+              const totalSize = diskStats.reduce((acc, curr) => acc + curr.size, 0);
+              const totalUsed = diskStats.reduce((acc, curr) => acc + curr.used, 0);
+
+              socket.emit('systemData', {
+                cpuUsage: cpuUsage * 100,
+                memoryUsage: memoryUsage * 100,
+                processCount,
+                processList,
+                downloadSpeed: downloadSpeed.toFixed(2), // KB/s
+                uploadSpeed: uploadSpeed.toFixed(2), // KB/s
+                diskUsage: { total: totalSize, used: totalUsed }, // Total and used disk space
+              });
             });
           } else {
             console.warn(`No stats found for interface: ${mainInterface}`);

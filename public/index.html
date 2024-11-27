@@ -122,6 +122,40 @@
       align-items: center;
       justify-content: space-between;
     }
+
+    .disk-usage-container {
+      margin: 20px auto;
+      width: 80%;
+    }
+
+    .disk-usage-info {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      font-weight: bold;
+    }
+
+    .disk-usage-bar {
+      background-color: var(--circle-bg);
+      border-radius: 15px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .disk-usage-bar-inner {
+      height: 30px;
+      background-color: var(--progress-color);
+      transition: width 0.3s;
+    }
+
+    .disk-usage-text {
+      position: absolute;
+      width: 100%;
+      text-align: center;
+      line-height: 30px;
+      font-weight: bold;
+      color: var(--text-color);
+    }
   </style>
 </head>
 <body>
@@ -151,6 +185,17 @@
         <circle class="fg" cx="125" cy="125" r="115" stroke-width="20"></circle>
         <text x="125" y="135" id="memory-text">0%</text>
       </svg>
+    </div>
+  </div>
+
+  <div class="disk-usage-container">
+    <div class="disk-usage-info">
+      <span id="disk-used">Used: 0 GB</span>
+      <span id="disk-available">Available: 0 GB</span>
+    </div>
+    <div class="disk-usage-bar" id="disk-usage">
+      <div class="disk-usage-bar-inner" id="disk-usage-inner"></div>
+      <span class="disk-usage-text" id="disk-usage-text">0 GB used</span>
     </div>
   </div>
 
@@ -238,10 +283,25 @@
       progressCircle.style.stroke = color;
     }
 
+    function updateDiskUsage(disk) {
+      const diskBar = document.getElementById('disk-usage-inner');
+      const diskText = document.getElementById('disk-usage-text');
+      const diskUsed = document.getElementById('disk-used');
+      const diskAvailable = document.getElementById('disk-available');
+
+      const percentUsed = (disk.used / disk.total) * 100;
+
+      diskBar.style.width = `${percentUsed}%`;
+      diskText.textContent = `${disk.used} GB used`;
+      diskUsed.textContent = `Used: ${disk.used} GB`;
+      diskAvailable.textContent = `Available: ${disk.total - disk.used} GB`;
+    }
+
     socket.on('systemData', (data) => {
       setCircularProgress('cpu', data.cpuUsage);
       setCircularProgress('memory', data.memoryUsage);
       updateNetworkGraph(data.downloadSpeed, data.uploadSpeed);
+      updateDiskUsage(data.diskUsage);
 
       const processList = document.getElementById('process-names');
       processList.innerHTML = '';
